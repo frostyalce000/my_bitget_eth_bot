@@ -13,19 +13,16 @@ import bitget.v2.mix.account_api as maxAccountApi
 import bitget.v2.mix.market_api as maxMarketApi
 import bitget.v2.mix.order_api as maxOrderApi
 
-
-# ========== Constants ==========
-BITGET_TICKERS_URL = "https://api.bitget.com/api/v2/mix/market/tickers"
-BITGET_CANDLE_URL = "https://api.bitget.com/api/v2/mix/market/history-candles"
-
 ETHUSDT_SYMBOL = "ETHUSDT"
 PRODUCT_TYPE = "USDT-FUTURES"
+MARGIN_COIN = "USDT"
+MARGIN_MODE = "isolated"
 CSV_FILE = "my_bitget_eth_history.csv"
 
 LEVERAGE = 10
 POSITION_SIZE_RATIO = 0.4
 INTERVAL = "1H"
-FEE_PERCENT = 0.0006
+FEE_PERCENT = 0.0004
 ATR_LENGTH = 14
 FS_LENGTH = 10
 RSI_LENGTH = 14
@@ -38,7 +35,7 @@ SECOND_SL_LEVEL = 0.1
 
 class AutoTradeBot:
     def __init__(self):
-        self.flag_webhook_sent = True
+        self.flag_api_sent = True
         self.running = True
         self.trade_lock = threading.Lock()
         self.price_lock = threading.Lock()
@@ -65,10 +62,6 @@ class AutoTradeBot:
         self.current_atr_value = 0.0
         self.current_vol_os = 0.0
         self.current_rsi_value = 0.0
-        self.symbol = "ETHUSDT"
-        self.productType = "USDT-FUTURES"
-        self.marginMode = "isolated"
-        self.margin_coin = "USDT"
         self.orderType = "market"
         self.set_leverage(LEVERAGE)
         self.balance = self.fetch_real_balance()
@@ -125,47 +118,48 @@ class AutoTradeBot:
         """Fetch actual USDT available balance from Bitget Futures account"""
         try:
             params = {
-                "productType": self.productType  # "USDT-FUTURES"
+                "productType": PRODUCT_TYPE
             }
             response = self.maxAccountApi.accounts(params)
             data = response.json()
 
             if data.get('code') != '00000':
-                print(f"[BALANCE] API Error: {data.get('msg')}")
+                print(f"[BALANCE 🔴] API Error: {data.get('msg')}")
                 return None
 
             accounts = data.get('data', [])
+
             for acc in accounts:
                 if acc.get('marginCoin') == 'USDT':
                     available = float(acc.get('available', 0))
-                    print(f"[BALANCE] Fetched real balance: ${available:.2f} USDT")
+                    print(f"[BALANCE 🟢] Fetched real balance: ${available:.2f} USDT")
                     return available
 
-            print("[BALANCE] USDT account not found")
+            print("[BALANCE 🔴] USDT account not found")
             return None
 
         except Exception as e:
-            print(f"[BALANCE] Error fetching balance: {e}")
+            print(f"[BALANCE 🔴] Error fetching balance: {e}")
             return None
 
     def set_leverage(self, leverage=10):
         """Set leverage for ETHUSDT USDT-FUTURES"""
         try:
             params = {
-                "symbol": self.symbol,
-                "productType": self.productType,
-                "marginMode": self.marginMode,
-                "marginCoin": self.margin_coin,
+                "symbol": ETHUSDT_SYMBOL,
+                "productType": PRODUCT_TYPE,
+                "marginCoin": MARGIN_COIN,
                 "leverage": str(leverage)
             }
             response = self.maxAccountApi.setLeverage(params)
             result = response.json()
             if result.get('code') == '00000':
-                print(f"[LEVERAGE] Successfully set to {leverage}x")
+                print(f"[LEVERAGE 🟢] Successfully set to {leverage}x")
+                print(f"[LEVERAGE 🟢] Response: {result.get('data')}")
             else:
-                print(f"[LEVERAGE] Failed: {result.get('msg')}")
+                print(f"[LEVERAGE 🔴] Failed: {result.get('msg')}")
         except Exception as e:
-            print(f"[LEVERAGE] Error setting leverage: {e}")
+            print(f"[LEVERAGE 🔴] Error setting leverage: {e}")
 
     # ========== Data Fetching & Indicators ==========
     def get_current_price(self):
@@ -359,15 +353,12 @@ class AutoTradeBot:
                 print(f"[HALF EXIT] Half exit already executed for {position['action'].upper()} position")
                 return
 
-            # Store original size if not already stored
             if 'original_size' not in position:
                 position['original_size'] = position['size']
 
-            # Calculate half size to close
             half_size = position['size'] / 2
             remaining_size = position['size'] - half_size
 
-            # Calculate PnL for the half position
             if position['action'] == 'long':
                 pnl = (current_price - position['entry_price']) * half_size
             else:
@@ -376,10 +367,8 @@ class AutoTradeBot:
             fee = (current_price + position['entry_price']) * FEE_PERCENT * half_size
             net_pnl = pnl - fee
 
-            # Update balance
             self.balance += net_pnl
 
-            # Create a closed trade record for the half exit
             half_trade = {
                 'entry_time': position['entry_time'],
                 'exit_time': datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -400,16 +389,13 @@ class AutoTradeBot:
                 'original_size': position['original_size']
             }
 
-            # Update the original position
             position['size'] = remaining_size
             position['half_exit_done'] = True
             position['trailing_stop_active'] = True
 
-            # Add the half exit trade to trades list
             self.trades.append(half_trade)
 
-            # Send webhook for half exit
-            self.send_webhook(f'exit_{position["action"]}', current_price, half_size, 50)
+            self.send_order(f'exit_{position["action"]}', current_price, half_size, 50)
 
             print(f"[HALF EXIT] 🔵 Executed half exit for {position['action'].upper()} position | "
                   f"Exit Price: ${current_price:.2f} | "
@@ -526,7 +512,9 @@ class AutoTradeBot:
                 print("[TRADE] Failed to fetch current price for open position.")
                 return
             
-            size = round((self.balance * POSITION_SIZE_RATIO * LEVERAGE) / price, 4)
+            available = self.fetch_real_balance()
+            
+            size = round((available * POSITION_SIZE_RATIO * LEVERAGE) / price, 4)
 
             current_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -560,7 +548,7 @@ class AutoTradeBot:
                 'original_size': size
             }
             
-            self.send_webhook(direction, price, size)
+            self.send_order(direction, price, size)
 
             if direction == 'long':
                 self.current_long_position = trade
@@ -593,7 +581,7 @@ class AutoTradeBot:
             else:
                 self.current_short_position = None
 
-            self.send_webhook(f'exit_{trade["action"]}', current_price, trade['size'], 100)
+            self.send_order(f'exit_{trade["action"]}', current_price, trade['size'], 100)
             self.save_trades()
             
             print(f"[TRADE] 🔴 Closed {trade['action'].upper()} position | "
@@ -681,14 +669,14 @@ class AutoTradeBot:
                 return
 
     # ========== Utility Methods ==========
-    def send_webhook(self, action, price, size=None, per=None):
+    def send_order(self, action, price, size=None, per=None):
         if action in ["short", "long"]:
             side = "sell" if action == "short" else "buy"
-            payload = {
+            params = {
                 "symbol": ETHUSDT_SYMBOL,
                 "productType": PRODUCT_TYPE,
-                "marginMode" : self.marginMode,
-                "marginCoin": self.margin_coin,
+                "marginMode" : MARGIN_MODE,
+                "marginCoin": MARGIN_COIN,
                 "size": str(round(size, 4)) if size else "",
                 "side": action,
                 "tradeSide": "open",
@@ -700,12 +688,12 @@ class AutoTradeBot:
             self.total_trades += 1
 
         elif action in ["exit_short", "exit_long"]:
-            side = "sell" if action == "exit_buy" else "buy"
-            payload = {
+            side = "sell" if action == "exit_long" else "buy"
+            params = {
                 "symbol": ETHUSDT_SYMBOL,
                 "productType": PRODUCT_TYPE,
-                "marginMode" : self.marginMode,
-                "marginCoin": self.margin_coin,
+                "marginMode" : MARGIN_MODE,
+                "marginCoin": MARGIN_COIN,
                 "size": str(round(size, 4)) if size else "",
                 "side": side,
                 "tradeSide": "close",
@@ -717,14 +705,20 @@ class AutoTradeBot:
         else:
             return
         
-        print(f"[Signal 🟡] Sending: {payload}")
+        print(f"[Signal 🟡] Sending: {params}")
 
-        if self.flag_webhook_sent:
+        if self.flag_api_sent:
             try:
-                response = self.baseApi.post("/api/v2/mix/order/place-order", payload)
-                print("Biget Response is:", response)
+                response = self.maxOrderApi.placeOrder(params)
+                result = response.json()
+                if result.get('code') == '00000':
+                    print(f"[Signal 🟢] Order placed successfully: {result.get('data')}")
+                else:
+                    print(f"[Signal 🔴] Order placement failed: {result.get('msg')}")
             except Exception as e:
-                print("Failed order :", e)
+                print("[Signal 🔴] Failed order :", e)
+        else:
+            print("[Signal 🟡] Order sending is disabled. Order not sent.")
 
     def save_trades(self):
         try:
