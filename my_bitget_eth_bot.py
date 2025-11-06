@@ -8,7 +8,6 @@ import threading
 from queue import Queue
 import pandas as pd
 
-import bitget.bitget_api as baseApi
 import bitget.v2.mix.account_api as maxAccountApi
 import bitget.v2.mix.market_api as maxMarketApi
 import bitget.v2.mix.order_api as maxOrderApi
@@ -35,7 +34,7 @@ SECOND_SL_LEVEL = 0.1
 
 class AutoTradeBot:
     def __init__(self):
-        self.flag_api_sent = True
+        self.flag_api_sent = False
         self.running = True
         self.trade_lock = threading.Lock()
         self.price_lock = threading.Lock()
@@ -47,9 +46,8 @@ class AutoTradeBot:
 
         self.api_key = "bg_439b475bb0ff165939418f3c5d546e52"
         self.secret_key = "212a66d931d0a3218183e8b82f25d89f4883c41135202f51d230e49d44dffc53"
-        self.passphrase = "Poil1111"
+        self.passphrase = "Simon2004"
 
-        self.baseApi = baseApi.BitgetApi(self.api_key, self.secret_key, self.passphrase)
         self.maxAccountApi = maxAccountApi.AccountApi(self.api_key, self.secret_key, self.passphrase)
         self.maxMarketApi = maxMarketApi.MarketApi(self.api_key, self.secret_key, self.passphrase)
         self.maxOrderApi = maxOrderApi.OrderApi(self.api_key, self.secret_key, self.passphrase)
@@ -64,10 +62,10 @@ class AutoTradeBot:
         self.current_rsi_value = 0.0
         self.orderType = "market"
         self.set_leverage(LEVERAGE)
+        self.balance = 100
         self.balance = self.fetch_real_balance()
-        
-        # Initialize current price via REST API
         self.current_price = self.get_current_price()
+
         if self.current_price is None:
             print("[INIT] Initial price from REST: None")
         else:
@@ -155,7 +153,6 @@ class AutoTradeBot:
             result = response.json()
             if result.get('code') == '00000':
                 print(f"[LEVERAGE 🟢] Successfully set to {leverage}x")
-                print(f"[LEVERAGE 🟢] Response: {result.get('data')}")
             else:
                 print(f"[LEVERAGE 🔴] Failed: {result.get('msg')}")
         except Exception as e:
@@ -175,14 +172,13 @@ class AutoTradeBot:
                 print(f"[REST] API Error: {data['msg']}")
                 return None
                 
-            # Find SOLUSDT ticker
             for ticker in data['data']:
                 if ticker['symbol'] == ETHUSDT_SYMBOL:
                     price = float(ticker['lastPr'])
                     print(f"[REST] Fetched price: ${price:.2f}")
                     return price
                     
-            print(f"[REST] SOLUSDT symbol not found in response")
+            print(f"[REST] ETHUSDT symbol not found in response")
             return None
             
         except Exception as e:
