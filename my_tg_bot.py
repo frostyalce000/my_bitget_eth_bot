@@ -1240,22 +1240,14 @@ Use the buttons below to control the bot or type /help for more information.
                 time.sleep(60)
 
 def main():
-    """Main function to start the bot"""
-    # Create trading bot instance first
     trading_bot = AutoTradeBot()
-    
-    # Create Telegram application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    # Set the telegram app in trading bot
     trading_bot.set_telegram_app(application)
     
-    # Add handlers
     application.add_handler(CommandHandler("start", trading_bot.handle_start))
     application.add_handler(CommandHandler("help", trading_bot.handle_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, trading_bot.handle_message))
     
-    # Start the bot
     print("🤖 Starting Trading Bot with Telegram control...")
     print("✅ Trading strategies are running in background")
     print("✅ Telegram bot is ready for commands")
