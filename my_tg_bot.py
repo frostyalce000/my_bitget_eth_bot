@@ -27,7 +27,7 @@ TELEGRAM_BOT_TOKEN = "8450626645:AAFA13SAXi461H56dDqRjbh-ZyE8IGuguIo"
 LEVERAGE = 10
 POSITION_SIZE_RATIO = 0.4
 INTERVAL = "1H"
-FEE_PERCENT = 0.0004
+FEE_PERCENT = 0.0006
 ATR_LENGTH = 14
 FS_LENGTH = 10
 RSI_LENGTH = 14
@@ -40,7 +40,7 @@ SECOND_SL_LEVEL = 0.1
 
 class AutoTradeBot:
     def __init__(self):
-        self.flag_api_sent = False
+        self.flag_api_sent = True
         self.running = True
         self.trade_lock = threading.Lock()
         self.price_lock = threading.Lock()
