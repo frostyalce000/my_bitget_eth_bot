@@ -1150,7 +1150,7 @@ Use the buttons below to control the bot or type /help for more information.
             self.total_trades += 1
 
         elif action in ["exit_short", "exit_long"]:
-            side = "sell" if action == "exit_long" else "buy"
+            side = "buy" if action == "exit_long" else "sell"
             params = {
                 "symbol": ETHUSDT_SYMBOL,
                 "productType": PRODUCT_TYPE,
