@@ -32,11 +32,11 @@ ATR_LENGTH = 14
 FS_LENGTH = 10
 RSI_LENGTH = 14
 
-FS_ENTRY_LEVEL = 0.5
-RSI_ENTRY_LEVEL = 2.0
+FS_ENTRY_LEVEL = 1.7
+RSI_ENTRY_LEVEL = 1.0
 STOP_LOSS_LEVEL = 2.0
-TAKE_PROFIT_LEVEL = 1.6
-SECOND_SL_LEVEL = 0.1
+TAKE_PROFIT_LEVEL = 1.0
+SECOND_SL_LEVEL = 1.7
 
 class AutoTradeBot:
     def __init__(self):
@@ -852,7 +852,7 @@ Use the buttons below to control the bot or type /help for more information.
         
         if fs_cross_up:
             cond_entry = abs(self.current_rsi_value - 50) > RSI_ENTRY_LEVEL
-            cond_entry_fs = max(abs(tr_now), abs(fs_now)) > FS_ENTRY_LEVEL
+            cond_entry_fs = max(abs(tr_now), abs(fs_now)) < FS_ENTRY_LEVEL
             cond_vol = self.current_vol_os > 0
             
             print(f"[SIGNAL] LONG Conditions - RSI: {cond_entry}, FS: {cond_entry_fs}, VOL: {cond_vol}")
